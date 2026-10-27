@@ -278,7 +278,7 @@
       caption.className = 'thumb-caption';
       caption.maxLength = 60;
       caption.value = photo.caption || '';
-      caption.placeholder = 'Add a caption';
+      caption.placeholder = 'Caption…';
       caption.setAttribute('aria-label', 'Caption for this photo');
       caption.addEventListener('input', () => {
         photo.caption = caption.value;

@@ -245,11 +245,12 @@ body.is-ready .reel-slides {
   will-change: transform;
 }
 
-/* While a card holds the foreground it eases larger than the ring so
-   the featured photo reads as magnified. Kept in sync with FRONT_ZOOM
-   in reel.js (the ring solver reserves headroom for it). */
+/* While a card holds the foreground its frame eases larger so the
+   featured photo reads as magnified. applyCardSize organises the
+   amplitude per card (`--zoom`, capped so the frame stays inside the
+   polaroid); the ring solver reserves headroom for the cap. */
 .orbit-slot.is-front .orbit-frame {
-  transform: scale(1.12);
+  transform: scale(var(--zoom, 1.16));
 }
 
 /* The words the user wrote for a photo sit in the card's bottom
@@ -844,6 +845,13 @@ body.is-ready .cake-scene {
 
   .sound-prompt {
     bottom: 106px;
+  }
+
+  /* On a short stage the foreground card's float would bob it into the
+     cake's candle zone (and the caption band) at the extremes of its
+     swing, so the featured photo holds still there. */
+  .orbit-slot.is-front .orbit-card {
+    animation: none;
   }
 }
 

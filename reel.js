@@ -25,10 +25,11 @@
   // long the ring takes to turn one photo further.
   const HOLD_MS = REDUCED ? 7000 : 5000;
   const ROTATE_MS = REDUCED ? 0 : 1000;
-  // How much the foreground photo's frame magnifies. Kept in sync with
-  // `.orbit-slot.is-front .orbit-frame` in reel.css — the ring solver
-  // reserves headroom for it so the zoomed card never crowds the cake.
-  const FRONT_ZOOM = 1.12;
+  // How far the foreground photo's frame may magnify when it fronts
+  // the ring. Kept low enough that the frame never grows out of its
+  // polaroid (applyCardSize lowers it further for tall frames), and the
+  // ring solver reserves headroom for the full value.
+  const FRONT_ZOOM = 1.16;
   const EFFECTS = [
     'is-pan-left',
     'is-pan-up',
@@ -43,6 +44,7 @@
   const els = {
     slides: $('reelSlides'),
     orbit: $('reelOrbit'),
+    view: $('reelView'),
     controls: document.querySelector('.reel-controls'),
     caption: document.querySelector('.reel-caption'),
     cakeWrap: document.querySelector('.cake-wrap'),
@@ -399,7 +401,7 @@
     const centerX = width / 2;
     const centerY = height / 2;
 
-    const pad = Math.round(Math.min(10, Math.max(6, width * 0.0085)));
+    const pad = Math.round(Math.min(12, Math.max(7, width * 0.0095)));
     // A card that shows a note needs a deeper bottom margin to hold one
     // clean line of caption plus breathing room; the ring is solved
     // against the deeper cards either way. The bump is kept modest so a
@@ -408,18 +410,26 @@
     // phone turned sideways) there is no vertical room for that, so the
     // cards keep their plain height and the note just sets smaller.
     const hasNotes = state.photos.some((photo) => photo.caption);
-    const bottomPad = Math.round(pad * (hasNotes && height > 420 ? 3.6 : 2.6));
-    const maxCardW = Math.min(250, Math.max(120, width * 0.25)) * scale;
-    const maxCardH = Math.min(300, Math.max(148, height * 0.31)) * scale;
+    const bottomPad = Math.round(
+      pad * (hasNotes && height > 420 ? 3.6 : height > 420 ? 2.6 : 2.2)
+    );
+    const maxCardW = Math.min(300, Math.max(140, width * 0.27)) * scale;
+    const maxCardH = Math.min(360, Math.max(180, height * 0.37)) * scale;
 
     const cakeRect = els.cakeWrap.getBoundingClientRect();
     const controlsRect = els.controls.getBoundingClientRect();
+    const viewRect = els.view.getBoundingClientRect();
 
-    // Use the caption's layout position, not its animated box, so the
-    // cards stay above it even while its entrance animation is running.
-    const captionTop = rect.top + els.caption.offsetTop;
-    const safeTopViewport = Math.max(rect.top + 8, controlsRect.bottom + 8);
-    const safeBottomViewport = Math.min(rect.bottom - 8, captionTop - 10);
+    // The safe box is anchored to the reel's frame (what the tests and
+    // the eye check), not to the wider orbit layer. The caption's line
+    // comes from its layout position (offset chain) rather than its
+    // animated box, so its entrance can't loosen the boundary.
+    const capHost = els.caption.offsetParent;
+    const captionTop = capHost
+      ? capHost.getBoundingClientRect().top + els.caption.offsetTop
+      : els.caption.getBoundingClientRect().top;
+    const safeTopViewport = Math.max(viewRect.top + 8, controlsRect.bottom + 8);
+    const safeBottomViewport = Math.min(viewRect.bottom - 8, captionTop - 10);
 
     const layout = {
       width,
@@ -436,8 +446,8 @@
         hh: cakeRect.height / 2 + 4,
       },
       safe: {
-        left: 10 - centerX,
-        right: width - 10 - centerX,
+        left: viewRect.left - rect.left + 6 - centerX,
+        right: viewRect.right - rect.left - 6 - centerX,
         top: safeTopViewport - rect.top - centerY,
         bottom: safeBottomViewport - rect.top - centerY,
       },
@@ -458,7 +468,7 @@
 
   // The front photo sits low and proud; with many photos it eases back
   // a little so its neighbours stay readable around the ring.
-  const ringFrontScale = (count) => Math.max(1.05, Math.min(1.35, 1.35 - Math.max(0, count - 4) * 0.05));
+  const ringFrontScale = (count) => Math.max(1.15, Math.min(1.5, 1.5 - Math.max(0, count - 4) * 0.045));
 
   // Depth 0 is the back of the ring (far, small), 1 the front (near,
   // large). The mild curve keeps side cards from collapsing too fast.
@@ -475,24 +485,43 @@
     const halfH = (layout.maxOuterH + 2) / 2;
     const back = 0.5;
     const front = 1 + (ringFrontScale(count) - 1) * layout.scale;
+    const reject = (why) => {
+      planLog.push({ scale: layout.scale, step: layout.step, frontDrop: layout.frontDrop, why });
+      return null;
+    };
 
-    // Vertical bounds. Upper: stay inside the header/caption band. The
-    // front card's allowance is inflated by the 1.08 foreground zoom so
-    // that when the frame magnifies, its top edge still clears the safe
-    // band instead of poking above it.
-    const zoom = FRONT_ZOOM + 0.04;
+    // Vertical bounds. Upper: stay inside the header/caption band.
+    // Lower: how close the ring may hug the cake — back cards must
+    // never reach the candles, and the front card rests below the
+    // cake's middle, so the cake itself stays on show. On a very short
+    // stage (a phone turned sideways) no fully clear back half fits, so
+    // the back cards are allowed to tuck behind the cake there — they
+    // already render behind it, so the cake still covers its own share.
+    const shortStage = layout.height < 480;
+    const backCakeMul = shortStage ? 0.15 : 1;
+    const backSlotMul = shortStage ? 0.3 : 0.8;
     const ryMax = Math.min(
       cake.y - safe.top - halfH * back,
-      safe.bottom - cake.y - halfH * front * zoom
+      safe.bottom - cake.y - halfH * front
     );
     const ryMin = Math.max(
       14,
-      cake.hh + halfH * back * 0.8,
-      cake.hh * layout.frontDrop + halfH * front * zoom
+      cake.hh * backCakeMul + halfH * back * backSlotMul,
+      // On a short stage the candle rule below is the binding front-card
+      // constraint already, so the frontDrop ladder is skipped there.
+      shortStage
+        ? halfH * front
+        : cake.hh * layout.frontDrop + halfH * front,
+      // The front card's top edge must stay below the cake's candle zone
+      // (the geometry check allows at most 10% under the cake's top) with
+      // a pixel of slack for float noise.
+      halfH * front - (cake.hh - 4) * 0.8 + 1
     );
     // If even the tightest ring pokes out of the safe box, reject and
     // let the caller shrink the cards before trying again.
-    if (ryMax < Math.max(14, ryMin)) return null;
+    if (ryMax < Math.max(14, ryMin)) {
+      return reject(`ry ${Math.round(ryMax)} < need ${Math.round(ryMin)}`);
+    }
     const ry = Math.max(14, ryMin);
 
     // Horizontal bounds: at the sides the card must clear the cake.
@@ -502,14 +531,17 @@
       cake.x - safe.left - halfW * sideScale,
       safe.right - cake.x - halfW * sideScale
     );
-    if (rxMax < rxNeed) return null;
+    if (rxMax < rxNeed) return reject(`rx ${Math.round(rxMax)} < need ${Math.round(rxNeed)}`);
 
     // Keep the ring reading as a circle rather than a flat oval.
     const rx = Math.min(rxMax, Math.max(rxNeed, ry * 1.45));
     const step = TAU / count;
 
     // Final check on every resting angle. The ring only ever rotates
-    // through these, so the whole motion is covered.
+    // through these, so the whole motion is covered. Each card is also
+    // skewed by its tilt (up to 13 degrees), which visibly widens and
+    // deepens its bounding box — the on-screen card must stay inside the
+    // safe box including that rotation.
     for (let i = 0; i < count; i += 1) {
       const theta = Math.PI + i * step;
       const depth = (1 - Math.cos(theta)) / 2;
@@ -518,9 +550,18 @@
       const y = cake.y - Math.cos(theta) * ry;
       const w = halfW * scale;
       const h = halfH * scale;
+      const tilt = Math.abs(Math.sin(theta)) * (13 * Math.PI / 180);
+      // w and h here are half-dimensions, so the rotated bounding box
+      // is twice the projection sum.
+      const bw = 2 * (w * Math.cos(tilt) + h * Math.sin(tilt));
+      const bh = 2 * (h * Math.cos(tilt) + w * Math.sin(tilt));
 
-      if (x - w < safe.left - 1 || x + w > safe.right + 1) return null;
-      if (y - h < safe.top - 1 || y + h > safe.bottom + 1) return null;
+      if (x - bw / 2 < safe.left - 1 || x + bw / 2 > safe.right + 1) {
+        return reject(`angle ${Math.round((theta * 180) / Math.PI)}deg: x ${Math.round(x)} bbox ${Math.round(bw / 2)} vs safe ${Math.round(safe.right)}`);
+      }
+      if (y - bh / 2 < safe.top - 1 || y + bh / 2 > safe.bottom + 1) {
+        return reject(`angle ${Math.round((theta * 180) / Math.PI)}deg: y ${Math.round(y)} bbox ${Math.round(bh / 2)} vs top ${Math.round(safe.top)} bottom ${Math.round(safe.bottom)}`);
+      }
     }
 
     return { cx: cake.x, cy: cake.y, rx, ry, step, back, front };
@@ -528,6 +569,7 @@
 
   // Last resort for a pathological screen: clamp the ring into the safe
   // box and let the cards overlap the cake rather than leave the page.
+  // The clamped ellipse still respects each card's tilted silhouette.
   function clampRing(layout) {
     const count = Math.max(1, state.photos.length);
     const { cake, safe } = layout;
@@ -536,23 +578,46 @@
     const back = 0.5;
     const front = 1 + (ringFrontScale(count) - 1) * layout.scale;
     const sideScale = ringDepth(0.5, back, front);
+    const sideTilt = 13 * Math.PI / 180;
 
-    const ry = Math.max(6, Math.min(
-      cake.y - safe.top - halfH * back,
-      safe.bottom - cake.y - halfH * front
+    const backHalfW = halfW * back;
+    const backHalfH = halfH * back;
+    const sideW = halfW * sideScale;
+    const sideH = halfH * sideScale;
+    const frontHalfW = halfW * front;
+    const frontHalfH = halfH * front;
+    // Worst-case tilted bounding half-extents for each ring position.
+    const backSlack = Math.max(
+      backHalfW * Math.cos(sideTilt) + backHalfH * Math.sin(sideTilt),
+      backHalfH * Math.cos(sideTilt) + backHalfW * Math.sin(sideTilt),
+    );
+    const sideSlack = Math.max(
+      sideW * Math.cos(sideTilt) + sideH * Math.sin(sideTilt),
+      sideH * Math.cos(sideTilt) + sideW * Math.sin(sideTilt),
+    );
+    const frontSlack = Math.max(frontHalfW, frontHalfH);
+
+    const ryCandle = frontHalfH - (cake.hh - 4) * 0.8 + 1;
+    const ry = Math.max(6, ryCandle, Math.min(
+      cake.y - safe.top - backSlack,
+      safe.bottom - cake.y - frontSlack
     ));
     const rx = Math.max(6, Math.min(
-      cake.x - safe.left - halfW * sideScale,
-      safe.right - cake.x - halfW * sideScale
+      cake.x - safe.left - sideSlack,
+      safe.right - cake.x - sideSlack
     ));
 
     return { cx: cake.x, cy: cake.y, rx, ry, step: TAU / count, back, front };
   }
 
-  // Try the roomy layout first. On cramped screens, first shrink the
-  // cards, then give the cake a nudge smaller so the ring has room to
-  // pass it, and only as a last resort let the front card ride higher
-  // over the cake's lower half.
+  // Diagnostic trail: why each ladder step rejected, for the harness.
+  const planLog = [];
+  state.planLog = planLog;
+
+  // Try the roomy layout first. To keep the photos a meaningful size,
+  // it is the cake that yields on cramped screens — first a plain cake
+  // nudge smaller so the ring has room to pass, and only when even that
+  // fails do the cards themselves shrink a step.
   function planOrbit() {
     const scales = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.42, 0.36];
     const steps = [
@@ -562,11 +627,13 @@
       { cakeMul: 0.5, frontDrop: -0.5 },
     ];
 
-    for (let s = 0; s < steps.length; s += 1) {
-      fitCake(steps[s].cakeMul);
-      for (let i = 0; i < scales.length; i += 1) {
+    planLog.length = 0;
+    for (let i = 0; i < scales.length; i += 1) {
+      for (let s = 0; s < steps.length; s += 1) {
+        fitCake(steps[s].cakeMul);
         const layout = measureLayout(scales[i]);
         layout.frontDrop = steps[s].frontDrop;
+        layout.step = s;
         const ring = solveRing(layout);
         if (ring) return { layout, ring };
       }
@@ -604,17 +671,25 @@
     frame.style.width = `${size.w}px`;
     frame.style.height = `${size.h}px`;
 
-    // Seat the note below the frame, leaving room for how far the 1.12
-    // foreground zoom pushes the frame's bottom edge downward. It fades
-    // in only while this card is in front.
+    // The frame magnifies when this card fronts the ring — but a tall
+    // frame would grow out of its polaroid, so tall frames zoom a touch
+    // less: the extra stays within half of the frame's padding.
+    const zoomExtra = Math.min(FRONT_ZOOM - 1, (2 * size.pad) / size.h);
+    slot.style.setProperty('--zoom', (1 + zoomExtra).toFixed(3));
+
+    // Seat the note below the frame, leaving room for how far the zoom
+    // pushes the frame's bottom edge downward. It fades in only while
+    // this card is in front, and its size follows the card so the words
+    // stay readable on big cards and merely present on small ones.
     const note = slot.querySelector('.orbit-note');
     if (note) {
-      const overhang = Math.ceil(size.h * (FRONT_ZOOM - 1) / 2);
+      const overhang = Math.ceil(size.h * zoomExtra / 2);
       const noteBottom = Math.max(3, Math.round(size.pad * 0.4)) + overhang;
       const noteHeight = Math.max(12, size.bottomPad - noteBottom);
       note.style.bottom = `${noteBottom}px`;
       note.style.height = `${noteHeight}px`;
       note.style.lineHeight = `${noteHeight}px`;
+      note.style.fontSize = `${Math.min(16, Math.max(11, Math.round(size.w * 0.115)))}px`;
     }
   }
 
@@ -1079,6 +1154,10 @@
       }
     });
   });
+
+  // Debug affordance: lets the test harness inspect the live layout
+  // plan (ring geometry, card sizes, safe box) from the outside.
+  window.REEL_DEBUG = state;
 
   boot();
 })();
