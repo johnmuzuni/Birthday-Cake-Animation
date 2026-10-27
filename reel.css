@@ -1,0 +1,898 @@
+/* ============================================================
+   Birthday reel page
+   A framed photo reel with the animated cake at its centre.
+   (The cake's own styles live in style.css and are reused here.)
+============================================================ */
+
+.reel-page,
+.reel-page * {
+  box-sizing: border-box;
+}
+
+.reel-page {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 30%, #4c202c 0%, #2b1119 44%, #150a0e 100%);
+  color: #fff8f0;
+  font-family: 'Lato', sans-serif;
+}
+
+/* ---------------------------------------------- picture frame */
+
+.reel-shell {
+  position: fixed;
+  inset: clamp(10px, 2.2vw, 30px);
+  padding: clamp(7px, 1vw, 13px);
+  border-radius: clamp(16px, 2.2vw, 28px);
+  background:
+    linear-gradient(
+      135deg,
+      #fdf6e8 0%,
+      #f5e6ca 28%,
+      #e4cda5 52%,
+      #f8efdd 74%,
+      #d3b78c 100%
+    );
+  box-shadow:
+    0 46px 100px -34px rgba(6, 2, 4, 0.92),
+    0 2px 0 rgba(255, 255, 255, 0.6) inset,
+    0 -2px 6px rgba(110, 77, 44, 0.38) inset;
+}
+
+.reel-shell::before {
+  content: "";
+  position: absolute;
+  inset: clamp(3px, 0.5vw, 6px);
+  z-index: 2;
+  border-radius: clamp(13px, 1.9vw, 23px);
+  border: 1px solid rgba(129, 92, 51, 0.34);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.reel-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: clamp(10px, 1.4vw, 18px);
+  background: radial-gradient(circle at 50% 45%, #3b1d26 0%, #170a0e 70%);
+  box-shadow:
+    inset 0 0 0 1px rgba(56, 28, 19, 0.55),
+    inset 0 0 80px rgba(8, 2, 5, 0.55);
+}
+
+/* ---------------------------------------------- photos */
+
+.reel-slides {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  /* The reel keeps playing as a soft, out-of-focus backdrop; the sharp
+     photos live in the small orbit cards above it. */
+  filter: blur(15px) saturate(1.08) brightness(0.5);
+  transform: scale(1.14);
+  transition: opacity 0.8s ease;
+}
+
+body.is-ready .reel-slides {
+  opacity: 1;
+}
+
+.frame-slide {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--fade, 1200ms) ease;
+  will-change: opacity;
+}
+
+.frame-slide.is-live {
+  opacity: 1;
+}
+
+.frame-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.12);
+  will-change: transform;
+  backface-visibility: hidden;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.frame-img.is-pan-left {
+  animation: panLeft var(--dur, 11s) linear both;
+}
+
+.frame-img.is-pan-right {
+  animation: panRight var(--dur, 11s) linear both;
+}
+
+.frame-img.is-pan-up {
+  animation: panUp var(--dur, 11s) linear both;
+}
+
+.frame-img.is-pan-down {
+  animation: panDown var(--dur, 11s) linear both;
+}
+
+.frame-img.is-zoom-in {
+  animation: zoomIn var(--dur, 11s) ease-out both;
+}
+
+.frame-img.is-zoom-out {
+  animation: zoomOut var(--dur, 11s) ease-in both;
+}
+
+/* ---------------------------------------------- scrims */
+
+.reel-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 44% 56% at 50% 46%,
+      rgba(18, 7, 11, 0.66) 0%,
+      rgba(18, 7, 11, 0.4) 44%,
+      rgba(18, 7, 11, 0) 72%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(16, 6, 10, 0.5) 0%,
+      rgba(16, 6, 10, 0.08) 22%,
+      rgba(16, 6, 10, 0) 56%,
+      rgba(16, 6, 10, 0.74) 100%
+    );
+  box-shadow: inset 0 0 90px rgba(10, 3, 6, 0.42);
+}
+
+/* ---------------------------------------------- orbit photo cards */
+
+/* The layer stays out of the stacking order (z-index: auto) so every
+   card can pick its own z-index: near cards pass in front of the cake
+   (z 7) while far cards slip behind it (z 5). */
+.orbit-layer {
+  position: absolute;
+  inset: 0;
+  z-index: auto;
+  pointer-events: none;
+}
+
+/* One slot per photo travels the ring. JS steers position, scale and
+   tilt every frame, so the slot itself only carries the opacity. */
+.orbit-slot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  opacity: 0;
+  transform:
+    translate(
+      calc(-50% + var(--x, 0px)),
+      calc(-50% + var(--y, 0px))
+    )
+    rotate(var(--tilt, 0deg))
+    scale(var(--scale, 1));
+  will-change: opacity, transform;
+  pointer-events: none;
+}
+
+.orbit-slot.is-live {
+  opacity: var(--o, 1);
+}
+
+.orbit-card {
+  position: relative;
+  padding: 10px 10px 26px;
+  border-radius: 4px;
+  background:
+    linear-gradient(
+      155deg,
+      #fffdf6 0%,
+      #f8eeda 44%,
+      #eeddc0 76%,
+      #e2cba4 100%
+    );
+  box-shadow:
+    0 30px 54px -26px rgba(4, 1, 3, 0.92),
+    0 8px 20px -14px rgba(4, 1, 3, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 -1px 0 rgba(120, 84, 48, 0.3) inset;
+}
+
+/* The photo at the front of the ring gets the spotlight: fuller shadow
+   and a gentle float while it lingers. */
+.orbit-slot.is-front .orbit-card {
+  box-shadow:
+    0 36px 62px -26px rgba(4, 1, 3, 0.95),
+    0 10px 26px -14px rgba(4, 1, 3, 0.75),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(120, 84, 48, 0.32) inset;
+  animation: cardFloat 4.6s ease-in-out infinite alternate;
+}
+
+.orbit-card::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(140, 101, 55, 0.22);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.orbit-frame {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 1px;
+  background: #1a0c11;
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 59, 33, 0.32),
+    inset 0 0 20px rgba(8, 2, 5, 0.35);
+  /* The photo itself already runs a pan/zoom animation, so the
+     magnify-when-front effect rides on the frame instead of the img. */
+  transition: transform 900ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* While a card holds the foreground it eases larger than the ring so
+   the featured photo reads as magnified. Kept in sync with FRONT_ZOOM
+   in reel.js (the ring solver reserves headroom for it). */
+.orbit-slot.is-front .orbit-frame {
+  transform: scale(1.12);
+}
+
+/* The words the user wrote for a photo sit in the card's bottom
+   margin and fade in only while that photo is in front. The box is
+   sized (in px) to match the margin reel.js reserves, and it carries a
+   soft frosted strip so the text stays readable whether it lands on
+   the cream card or over the photo's bottom edge (the foreground zoom
+   pushes the frame down toward it). */
+.orbit-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  padding: 0 3px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 252, 245, 0.9);
+  font-size: clamp(11px, 1.5vmin, 15px);
+  line-height: 1.2;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #6a4a26;
+  opacity: 0;
+  transition: opacity 380ms ease;
+  pointer-events: none;
+}
+
+.orbit-slot.is-front .orbit-note {
+  opacity: 1;
+}
+
+.orbit-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.05);
+  backface-visibility: hidden;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Inside each card the photo keeps drifting, back and forth, for as
+   long as the card exists. */
+.orbit-img.is-pan-left {
+  animation: cardPanLeft var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.orbit-img.is-pan-right {
+  animation: cardPanRight var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.orbit-img.is-pan-up {
+  animation: cardPanUp var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.orbit-img.is-pan-down {
+  animation: cardPanDown var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.orbit-img.is-zoom-in {
+  animation: cardZoomIn var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.orbit-img.is-zoom-out {
+  animation: cardZoomOut var(--dur, 9s) ease-in-out infinite alternate;
+}
+
+.card-tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: clamp(36px, 34%, 58px);
+  height: clamp(12px, 8%, 17px);
+  transform: translateX(-50%) rotate(-3deg);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 240, 199, 0.62),
+      rgba(226, 193, 133, 0.42)
+    );
+  box-shadow: 0 1px 3px rgba(44, 22, 5, 0.22);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.card-tape::before,
+.card-tape::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.card-tape::before {
+  left: 10%;
+}
+
+.card-tape::after {
+  right: 10%;
+}
+
+@keyframes cardFloat {
+  from {
+    transform: translate3d(0, -2.5px, 0) rotate(-0.4deg);
+  }
+  to {
+    transform: translate3d(0, 2.5px, 0) rotate(0.4deg);
+  }
+}
+
+/* Gentle motion inside the small frame. */
+@keyframes cardPanLeft {
+  from {
+    transform: scale(1.1) translate3d(3%, 0, 0);
+  }
+  to {
+    transform: scale(1.04) translate3d(-3%, 0, 0);
+  }
+}
+
+@keyframes cardPanRight {
+  from {
+    transform: scale(1.1) translate3d(-3%, 0, 0);
+  }
+  to {
+    transform: scale(1.04) translate3d(3%, 0, 0);
+  }
+}
+
+@keyframes cardPanUp {
+  from {
+    transform: scale(1.1) translate3d(0, 3%, 0);
+  }
+  to {
+    transform: scale(1.04) translate3d(0, -3%, 0);
+  }
+}
+
+@keyframes cardPanDown {
+  from {
+    transform: scale(1.1) translate3d(0, -3%, 0);
+  }
+  to {
+    transform: scale(1.04) translate3d(0, 3%, 0);
+  }
+}
+
+@keyframes cardZoomIn {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.14);
+  }
+}
+
+@keyframes cardZoomOut {
+  from {
+    transform: scale(1.14);
+  }
+  to {
+    transform: scale(1.02);
+  }
+}
+
+/* ---------------------------------------------- cake */
+
+.cake-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding-bottom: clamp(44px, 9vh, 108px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease 0.1s;
+}
+
+body.is-ready .cake-scene {
+  opacity: 1;
+}
+
+.cake-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(60vmin, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -56%);
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 219, 164, 0.26) 0%,
+      rgba(255, 176, 128, 0.12) 40%,
+      rgba(255, 176, 128, 0) 70%
+    );
+  filter: blur(2px);
+}
+
+.cake-wrap {
+  position: relative;
+  width: 200px;
+  height: 124px;
+  transform: scale(var(--cake-scale, 1.6));
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 20px 32px rgba(7, 2, 4, 0.55));
+}
+
+/* Only the finished cake part of the tall SVG is visible. The cake
+   artwork itself sits between y=407 and y=480 in the 500-unit canvas. */
+.cake-wrap #cake {
+  position: absolute;
+  top: -356px;
+  left: 0;
+  display: block;
+  width: 200px;
+  height: 500px;
+  margin: 0;
+}
+
+/* Same candle choreography as the index page: the candle stays hidden,
+   drops in at 6s and the flames light at 6.5s. (top/margin keep the
+   candle re-based inside the cropped cake window.) */
+.cake-wrap .velas {
+  top: 24px;
+  margin-top: 0;
+  opacity: 0;
+  animation:
+    in 500ms 6s ease-out forwards,
+    candleShow 1ms 5.5s forwards;
+}
+
+@keyframes candleShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------- top controls */
+
+.reel-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: clamp(14px, 2.6vw, 26px);
+  pointer-events: none;
+}
+
+.reel-controls > * {
+  pointer-events: auto;
+}
+
+.reel-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(26, 11, 16, 0.42);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: rgba(255, 248, 240, 0.92);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mark-spark {
+  color: #ffd8a8;
+  font-size: 0.9rem;
+}
+
+.reel-page .reel-icon-btn {
+  text-decoration: none;
+}
+
+/* ---------------------------------------------- greeting */
+
+.reel-caption {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(66px, 10vh, 112px);
+  z-index: 8;
+  width: min(90%, 780px);
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  text-shadow:
+    0 3px 30px rgba(10, 3, 6, 0.85),
+    0 1px 2px rgba(10, 3, 6, 0.5);
+  animation: reelCaptionIn 1s 0.35s ease both;
+}
+
+@keyframes reelCaptionIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.reel-caption h1 {
+  margin: 0;
+  color: #fff8ef;
+  font-size: clamp(2rem, 5.6vw, 4.1rem);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.reel-caption p {
+  margin: 0.55rem 0 0;
+  color: #ffd9ab;
+  font-size: clamp(0.72rem, 1.5vw, 0.95rem);
+  font-weight: 300;
+  letter-spacing: 0.46em;
+  text-indent: 0.46em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------- footer / progress */
+
+.reel-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  padding: 0 clamp(18px, 4vw, 42px) max(16px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.reel-dots {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 6px;
+}
+
+.reel-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+.reel-dot.is-active {
+  width: 22px;
+  background: #ffe0b8;
+}
+
+.reel-progress {
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.reel-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffe6c7, #ffb5a7);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+/* ---------------------------------------------- sound prompt */
+
+.sound-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(138px, 22vh, 210px);
+  z-index: 25;
+  transform: translateX(-50%);
+}
+
+.sound-prompt[hidden] {
+  display: none;
+}
+
+.sound-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 21px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 220, 176, 0.5);
+  background: rgba(30, 12, 18, 0.76);
+  box-shadow: 0 16px 34px -16px rgba(5, 1, 3, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #ffe7c4;
+  font-family: inherit;
+  font-size: 0.76rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  cursor: pointer;
+  animation: soundPulse 2.8s ease-in-out infinite;
+  transition: background 0.22s, transform 0.22s;
+}
+
+.sound-btn:hover {
+  background: rgba(62, 28, 38, 0.9);
+  transform: translateY(-1px);
+}
+
+.sound-btn:focus-visible,
+.reel-page .reel-icon-btn:focus-visible {
+  outline: 2px solid #ffe0b8;
+  outline-offset: 2px;
+}
+
+.sound-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes soundPulse {
+  0%, 100% {
+    box-shadow: 0 16px 34px -16px rgba(5, 1, 3, 0.95);
+  }
+  50% {
+    box-shadow:
+      0 16px 34px -16px rgba(5, 1, 3, 0.95),
+      0 0 0 6px rgba(255, 220, 176, 0.08);
+  }
+}
+
+/* ---------------------------------------------- empty state */
+
+.reel-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+  background: rgba(18, 7, 11, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff4e8;
+  font-family: 'Lato', sans-serif;
+}
+
+.reel-empty[hidden] {
+  display: none;
+}
+
+.empty-spark {
+  color: #ffd8a8;
+  font-size: 1.4rem;
+}
+
+.reel-empty p {
+  margin: 0;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  font-style: italic;
+  font-weight: 300;
+}
+
+.reel-empty a {
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff8eb 0%, #ffd9c8 55%, #ffb9ac 100%);
+  box-shadow: 0 12px 26px -12px rgba(255, 184, 169, 0.8);
+  color: #7a3f3b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.reel-empty a:focus-visible {
+  outline: 2px solid #ffe0b8;
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------- toast */
+
+.reel-page .reel-toast {
+  z-index: 40;
+  bottom: clamp(86px, 14vh, 148px);
+}
+
+/* ---------------------------------------------- responsive */
+
+@media (max-width: 560px) {
+  .reel-shell {
+    inset: 8px;
+    padding: 6px;
+    border-radius: 17px;
+  }
+
+  .reel-mark {
+    padding: 8px 12px;
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
+  }
+
+  .reel-page .reel-icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .reel-caption {
+    bottom: clamp(60px, 9vh, 90px);
+  }
+
+  .sound-prompt {
+    bottom: clamp(128px, 21vh, 176px);
+  }
+
+  .sound-btn {
+    padding: 11px 18px;
+    font-size: 0.68rem;
+  }
+
+  /* A lighter backdrop blur keeps the page smooth on phones. */
+  .reel-slides {
+    filter: blur(11px) saturate(1.05) brightness(0.47);
+    transform: scale(1.16);
+  }
+
+  .orbit-card {
+    box-shadow:
+      0 20px 36px -20px rgba(4, 1, 3, 0.92),
+      0 6px 14px -10px rgba(4, 1, 3, 0.65),
+      0 1px 0 rgba(255, 255, 255, 0.8) inset,
+      0 -1px 0 rgba(120, 84, 48, 0.3) inset;
+  }
+
+  .card-tape {
+    top: -7px;
+  }
+}
+
+@media (max-height: 560px) {
+  .reel-caption {
+    bottom: 54px;
+  }
+
+  .reel-caption h1 {
+    font-size: clamp(1.5rem, 6vh, 2.4rem);
+  }
+
+  .reel-caption p {
+    margin-top: 0.3rem;
+  }
+
+  .cake-scene {
+    padding-bottom: 34px;
+  }
+
+  .sound-prompt {
+    bottom: 106px;
+  }
+}
+
+/* ---------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .frame-slide {
+    transition-duration: 0.35s !important;
+  }
+
+  .frame-img {
+    animation: none !important;
+    transform: scale(1.04);
+  }
+
+  .orbit-slot {
+    transition-duration: 0.3s !important;
+  }
+
+  .orbit-slot.is-front .orbit-card {
+    animation: none;
+  }
+
+  .orbit-img {
+    animation: none !important;
+    transform: scale(1.03);
+  }
+
+  .orbit-frame {
+    transition: none;
+  }
+
+  .reel-caption {
+    animation: none;
+  }
+
+  .sound-btn {
+    animation: none;
+  }
+
+  .cake-wrap .velas {
+    animation: none;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .cake-wrap .fuego {
+    animation: none;
+    background: rgba(254, 248, 97, 0.5);
+    box-shadow: 0 0 40px 10px rgba(248, 233, 209, 0.2);
+  }
+}
