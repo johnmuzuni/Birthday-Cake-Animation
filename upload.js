@@ -1,14 +1,14 @@
 /* ============================================================
    Birthday reel — upload dock
    - up to 10 photos
-   - a song trimmed to its first 10 seconds on the reel page
+   - a song limited to its first 30 seconds on the reel page
    - selections are kept in IndexedDB and handed to reel.html
 ============================================================ */
 (() => {
   'use strict';
 
   const MAX_PHOTOS = 10;
-  const MAX_AUDIO_SECONDS = 10;
+  const MAX_AUDIO_SECONDS = 30;
   const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
   const $ = (id) => document.getElementById(id);
@@ -57,7 +57,7 @@
       return `first ${MAX_AUDIO_SECONDS}s`;
     }
     if (audio.duration > MAX_AUDIO_SECONDS + 0.15) {
-      return `first 0:10 of ${formatTime(audio.duration)}`;
+      return `first 0:30 of ${formatTime(audio.duration)}`;
     }
     const loops = audio.duration < MAX_AUDIO_SECONDS - 0.05 ? ' · loops' : '';
     return `${formatTime(audio.duration)} clip${loops}`;
@@ -196,7 +196,7 @@
         state.audio &&
         state.audio.duration > MAX_AUDIO_SECONDS + 0.15
       ) {
-        showToast('Song is longer than 10s — using the first 10 seconds.');
+        showToast('Song is longer than 30s — using the first 30 seconds.');
       }
     }, { once: true });
 

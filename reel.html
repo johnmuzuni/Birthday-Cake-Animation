@@ -25,6 +25,18 @@
         </div>
 
         <div class="reel-actions">
+          <button type="button" class="reel-icon-btn" id="downloadBtn" aria-label="Download the reel as a video" hidden>
+            <svg id="downloadIconIdle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v11"/>
+              <path d="m7 10 5 5 5-5"/>
+              <path d="M5 20h14"/>
+            </svg>
+            <svg id="downloadIconBusy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <circle cx="12" cy="12" r="8"/>
+              <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+
           <button type="button" class="reel-icon-btn" id="muteBtn" aria-label="Mute music" hidden>
             <svg id="muteIconOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 5 6 9H3v6h3l5 4V5z"/>
@@ -209,7 +221,15 @@
 
       <div class="reel-caption">
         <h1>happy birthday!</h1>
-        <p>Pearl</p>
+        <!-- Each photo's own words, independent of the frame: one line
+             below the ring that dissolves into the next photo's
+             sentence as the ring turns. It takes the name's slot while
+             the photos carry words; without words the name returns. -->
+        <div class="reel-quote" id="reelQuote" aria-hidden="true">
+          <span class="reel-quote-line"></span>
+          <span class="reel-quote-line"></span>
+        </div>
+        <p class="reel-name" id="reelName">Pearl</p>
       </div>
 
       <div class="reel-footer">

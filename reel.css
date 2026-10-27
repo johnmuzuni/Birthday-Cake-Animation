@@ -245,46 +245,70 @@ body.is-ready .reel-slides {
   will-change: transform;
 }
 
-/* While a card holds the foreground its frame eases larger so the
-   featured photo reads as magnified. applyCardSize organises the
-   amplitude per card (`--zoom`, capped so the frame stays inside the
-   polaroid); the ring solver reserves headroom for the cap. */
+/* While a card holds the foreground its frame eases much larger so the
+   featured photo reads as the spotlight — it even pops off the paper
+   (the tape above it keeps that edge honest). applyCardSize holds the
+   amplitude per card (`--zoom`), and keeps the pop clear of the candle
+   flame and the sentence line. */
 .orbit-slot.is-front .orbit-frame {
-  transform: scale(var(--zoom, 1.16));
+  transform: scale(var(--zoom, 1.45));
 }
 
-/* The words the user wrote for a photo sit in the card's bottom
-   margin and fade in only while that photo is in front. The box is
-   sized (in px) to match the margin reel.js reserves, and it carries a
-   soft frosted strip so the text stays readable whether it lands on
-   the cream card or over the photo's bottom edge (the foreground zoom
-   pushes the frame down toward it). */
-.orbit-note {
+/* ---------------------------------------------- photo sentences */
+
+/* The words the user wrote for each photo no longer live on the card.
+   They have their own display: one line inside the greeting block,
+   where the receiver's name used to stand (the name lives in the
+   header chip already), and as the reel turns the outgoing sentence
+   dissolves into the next photo's — the two spans cross-fade. Hidden
+   while no photo carries a message, letting the name return. */
+.reel-quote {
+  position: relative;
+  height: 1.6em;
+  margin-top: 0.45rem;
+  font-size: clamp(0.9rem, 1.8vw, 1.25rem);
+  font-style: italic;
+  font-weight: 300;
+}
+
+.reel-quote[hidden] {
+  display: none;
+}
+
+.reel-quote-line {
   position: absolute;
   left: 0;
   right: 0;
-  box-sizing: border-box;
-  padding: 0 3px;
+  top: 0;
   margin: 0;
-  overflow: hidden;
-  border-radius: 4px;
-  background: rgba(255, 252, 245, 0.9);
-  font-size: clamp(11px, 1.5vmin, 15px);
-  line-height: 1.2;
-  font-style: italic;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  color: #ffe8c6;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
-  color: #6a4a26;
+  text-shadow:
+    0 2px 22px rgba(10, 3, 6, 0.9),
+    0 1px 3px rgba(10, 3, 6, 0.6),
+    0 0 26px rgba(255, 214, 160, 0.35);
   opacity: 0;
-  transition: opacity 380ms ease;
-  pointer-events: none;
+  filter: blur(5px);
+  transform: translateY(9px);
+  transition:
+    opacity 700ms ease,
+    filter 700ms ease,
+    transform 700ms ease;
 }
 
-.orbit-slot.is-front .orbit-note {
+.reel-quote-line.is-on {
   opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+}
+
+.reel-caption .reel-name[hidden] {
+  display: none;
 }
 
 .orbit-img {
@@ -869,6 +893,10 @@ body.is-ready .cake-scene {
 
   .orbit-slot {
     transition-duration: 0.3s !important;
+  }
+
+  .reel-quote-line {
+    transition-duration: 0.25s !important;
   }
 
   .orbit-slot.is-front .orbit-card {
